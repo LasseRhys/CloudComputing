@@ -1,0 +1,76 @@
+classDiagram
+direction BT
+class customer {
+   timestamp(6) created_at
+   varchar(255) customer_number
+   timestamp(6) updated_at
+   bigint user_id
+}
+class employee {
+   timestamp(6) created_at
+   varchar(255) employee_number
+   timestamp(6) updated_at
+   bigint user_id
+}
+class event {
+   bigint base_price
+   timestamp(6) date
+   bigint threshold_value
+   varchar(255) title
+   bigint sold_tickets
+   bigint total_tickets
+   bigint creator_id
+   bigint manager_id
+   bigint event_id
+}
+class notification {
+   timestamp(6) created_at
+   boolean is_read
+   varchar(255) message
+   varchar(255) notification_type
+   bigint recipient_id
+   bigint id
+}
+class roles {
+   varchar(255) name
+   bigint id
+}
+class ticket {
+   bigint base_price
+   bigint final_price
+   timestamp(6) purchase_date
+   boolean status_used
+   bigint customer_id
+   bigint event_id
+   bigint ticket_id
+}
+class user_roles {
+   bigint user_id
+   bigint role_id
+}
+class users {
+   varchar(255) email
+   boolean enabled
+   varchar(255) first_name
+   varchar(255) last_name
+   varchar(255) password
+   bigint id
+}
+class voucher {
+   bigint amount
+   varchar(20) code
+   timestamp(6) date_valid_until
+   bigint customer_id
+   bigint voucher_id
+}
+
+customer "1" --> "1" users : user
+employee "1" --> "1" users : user
+event "*" --> "1" employee : manager
+event "*" --> "1" employee : creator
+notification "*" --> "1" users : recipient
+ticket "*" --> "1" customer : customer
+ticket "*" --> "1" event : event
+user_roles "*" --> "1" roles : role
+user_roles "*" --> "1" users : user
+voucher "*" --> "1" customer : customer

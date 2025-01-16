@@ -1,0 +1,75 @@
+{
+  "name": "vue-notus",
+  "homepage": "https://demos.creative-tim.com/vue-notus/",
+  "version": "1.1.0",
+  "description": "Vue Notus - A free Tailwind CSS and VueJS UI Kit and Admin by Creative Tim.",
+  "repository": "https://github.com/creativetimofficial/vue-notus",
+  "license": "MIT",
+  "scripts": {
+    "serve": "vue-cli-service serve",
+    "build": "cross-env PUBLIC_URL=/ cross-env CI=false vue-cli-service build && gulp licenses",
+    "lint": "vue-cli-service lint",
+    "build:tailwind": "tailwind build src/assets/styles/index.css -o src/assets/styles/tailwind.css",
+    "install:clean": "rm -rf node_modules/ && rm -rf package-lock.json && npm install && npm run build:tailwind && npm run serve"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.6.0",
+    "@mdi/font": "^7.4.47",
+    "@popperjs/core": "2.9.1",
+    "@stomp/stompjs": "^7.0.0",
+    "@tailwindcss/aspect-ratio": "^0.4.2",
+    "@tailwindcss/forms": "0.2.1",
+    "@tailwindcss/typography": "^0.5.16",
+    "@vue/compiler-sfc": "^3.5.13",
+    "axios": "^1.7.9",
+    "chart.js": "2.9.4",
+    "core-js": "3.9.1",
+    "gulp": "4.0.2",
+    "gulp-append-prepend": "1.0.8",
+    "socket.io-client": "^4.8.1",
+    "sockjs-client": "^1.6.1",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0",
+    "vuex": "^4.0.2"
+  },
+  "devDependencies": {
+    "@babel/core": "7.13.10",
+    "@babel/eslint-parser": "7.13.10",
+    "@vue/cli-plugin-babel": "^5.0.0-alpha.7",
+    "@vue/cli-plugin-eslint": "^5.0.0-alpha.7",
+    "@vue/cli-service": "^5.0.8",
+    "autoprefixer": "^10.2.5",
+    "cross-env": "^7.0.3",
+    "eslint": "7.22.0",
+    "eslint-plugin-vue": "7.7.0",
+    "https-browserify": "^1.0.0",
+    "postcss": "^8.4.39",
+    "tailwindcss": "^3.4.17",
+    "vue-template-compiler": "2.6.12",
+    "webpack": "^5.97.1",
+    "webpack-cli": "^6.0.1"
+  },
+  "eslintConfig": {
+    "root": true,
+    "env": {
+      "node": true
+    },
+    "extends": [
+      "plugin:vue/essential",
+      "eslint:recommended"
+    ],
+    "rules": {},
+    "parserOptions": {
+      "parser": "@babel/eslint-parser"
+    }
+  },
+  "postcss": {
+    "plugins": {
+      "autoprefixer": {}
+    }
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "jsx": "Preserve",
+    "target": "ESNext",
+    "module": "ESNext",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true
+  },
+  "vueCompilerOptions": {
+    "target": 3.3
+  }
+}
