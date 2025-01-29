@@ -19,6 +19,7 @@ provider "aws" {
   # Authentication requires the following environment variables:
   #     AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SECRET_ACCESS_KEY
 }
+}
 =======
 <<<<<<< HEAD
 terraform {
