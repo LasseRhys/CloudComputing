@@ -57,7 +57,7 @@ resource "aws_internet_gateway" "igw" {
   }
 }
 
-resource "aws_route_table" "public_a" {
+resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
   route {
@@ -69,7 +69,7 @@ resource "aws_route_table" "public_a" {
     Name = "Public Route Table"
   }
 }
-resource "aws_route_table" "public_b" {
+resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 
   route {
@@ -84,12 +84,22 @@ resource "aws_route_table" "public_b" {
 
 resource "aws_route_table_association" "public_a" {
   subnet_id      = aws_subnet.aws_subnet_public_a.id
-  route_table_id = aws_route_table.public_a.id
+  route_table_id = aws_route_table.public.id
 }
 
 resource "aws_route_table_association" "public_b" {
   subnet_id      = aws_subnet.aws_subnet_public_b.id
-  route_table_id = aws_route_table.public_b.id
+  route_table_id = aws_route_table.public.id
+}
+# Route Table subnet priv to subnet priv
+resource "aws_route_table_association" "private_a" {
+  subnet_id      = aws_subnet.aws_subnet_private_a.id
+  route_table_id = aws_route_table.private.id
+}
+
+resource "aws_route_table_association" "private_b" {
+  subnet_id      = aws_subnet.aws_subnet_private_b.id
+  route_table_id = aws_route_table.private.id
 }
 
 resource "aws_security_group" "web_sg" {
@@ -106,7 +116,7 @@ resource "aws_security_group" "web_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # HTTP-Zugriff von überall
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -121,6 +131,31 @@ resource "aws_security_group" "web_sg" {
   }
 }
 
+resource "aws_security_group" "lb_sg" {
+  name        = "load_balancer_sg"
+  description = "Security group for ALB allowing HTTP traffic"
+  vpc_id      = aws_vpc.main.id #rsetze mit deiner VPC-ID
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]  # Erlaubt ausgehenden Verkehr in alle Richtungen
+  }
+
+  tags = {
+    Name = "lb-security-group"
+  }
+}
+
+
 resource "aws_instance" "web_server" {
   ami               = "ami-0866a3c8686eaeeba" 
   instance_type     = "t2.micro"
@@ -129,34 +164,41 @@ resource "aws_instance" "web_server" {
 
   depends_on = [aws_db_instance.db,aws_vpc.main,aws_subnet.aws_subnet_public_a]
 
-user_data = <<-EOF
-#!/bin/bash
-sudo apt update
-sudo update-java-alternatives --set java-1.17.0-openjdk-amd64 
-git clone https://github.com/LasseRhys/CloudComputing.git
-cd CloudComputing
-sudo apt install maven -y
-sudo apt install npm -y
-sudo apt install openjdk-17-jdk -y
-npm install
-mvn clean install
-echo "export USERNAME_DB=${var.username}" >> /etc/environment
-echo "export PASSWORD_DB=${var.password}" >> /etc/environment
-echo "export DATABASE=${aws_db_instance.db.address}" >> /etc/environment
-mvn spring-boot:run
+  user_data = <<-EOF
+              #!/bin/bash
+              sudo apt update
+              sudo update-java-alternatives --set java-1.17.0-openjdk-amd64
+              mkdir /home/ubuntu/CloudComputing
+              cd /home/ubuntu/CloudComputing
+              git clone https://github.com/LasseRhys/CloudComputing.git .
+              sudo apt install maven -y
+              sudo apt install npm -y
+              sudo apt install openjdk-17-jdk -y
+              npm install
+              mvn clean install
+              export USERNAME_DB=${var.username}
+              export PASSWORD_DB=${var.password}
+              export DATABASE=${aws_db_instance.db.address}
+             ## echo "export USERNAME_DB=${var.username}" | sudo tee -a  backend/EventTom/.env
+             ## echo "export PASSWORD_DB=${var.password}" | sudo tee -a backend/EventTom/.env
+             ## echo "export DATABASE=${aws_db_instance.db.address}" | sudo tee -a backend/EventTom/.env
+             ## export $(cat .env | xargs)
+             ## ./mvnw spring-boot:run
+              mvn spring-boot:run
 
 
-EOF 
+              EOF
 }
 
 resource "aws_security_group" "db_sg" {
   vpc_id = aws_vpc.main.id
 
   ingress {
-    from_port   = 3306
-    to_port     = 3306
+    from_port   = 5432
+    to_port     = 5432
     protocol    = "tcp"
-    cidr_blocks = ["10.0.1.0/24"] # Nur Zugriff vom öffentlichen Subnetz
+   # cidr_blocks = ["10.0.1.0/24"] # Nur Zugriff vom open subnet
+    security_groups = [aws_security_group.web_sg.id]
   }
 
   egress {
@@ -196,13 +238,14 @@ resource "aws_db_instance" "db" {
   vpc_security_group_ids = [aws_security_group.db_sg.id]
   #final_snapshot_identifier = false
   skip_final_snapshot = true
+  publicly_accessible = false
   tags = {
     Name = "MyDB"
   }
 }
 
-resource "aws_s3_bucket" "Not static files" {
-  bucket = "not static bucket"
+resource "aws_s3_bucket" "Not_static_files" {
+  bucket = "notstaticbucket"
 
   tags = {
     Name = "not Static Files Bucket"
@@ -210,14 +253,33 @@ resource "aws_s3_bucket" "Not static files" {
 }
 
 resource "aws_s3_bucket" "static_files" {
-  bucket = "websitebucket" 
+  bucket = "websitebucketeventom"
 
-  acl    = "public-read" 
+ # acl    = "public-read"
 
   tags = {
     Name = "Static Files Bucket"
   }
 }
+
+# Public Access Block (muss deaktiviert werden, um öffentliche Policy zu nutzen)
+resource "aws_s3_bucket_public_access_block" "static_files_public_access" {
+  bucket = aws_s3_bucket.static_files.id
+
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+resource "aws_s3_bucket_ownership_controls" "static_files_ownership" {
+  bucket = aws_s3_bucket.static_files.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
 
 #  BucketPolicy einstellen
 resource "aws_s3_bucket_policy" "static_files_policy" {
@@ -234,15 +296,19 @@ resource "aws_s3_bucket_policy" "static_files_policy" {
       }
     ]
   })
+  depends_on = [aws_s3_bucket_ownership_controls.static_files_ownership]
 }
 
 # Deployment  index
-resource "aws_s3_object" "index_vue" {
+resource "aws_s3_object" "vue_files" {
+  for_each = fileset("${path.module}/../src/views/kunde", "**/*.vue")
+
   bucket       = aws_s3_bucket.static_files.id
-  key          = "index.vue" 
-  source       = "${path.module}/CloudComputing/src/views/kunde/dashboard/index.vue" 
-  content_type = "text/html" #
+  key          = each.value
+  source       = "${path.module}/../src/views/kunde/${each.value}"
+  content_type = "text/html"
 }
+
 
 
 #Loadblanacer
@@ -257,26 +323,19 @@ resource "aws_lb" "loadbalancer" {
   security_groups    = [aws_security_group.web_sg.id]
   subnets            = [aws_subnet.aws_subnet_public_a.id, aws_subnet.aws_subnet_public_b.id]
 
-  enable_deletion_protection = false
-  idle_timeout {
-    minutes = 60
-  }
+
 
  
 }
 
 resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.main.arn
+  load_balancer_arn = aws_lb.loadbalancer.arn
   port              = "80"
   protocol          = "HTTP"
 
   default_action {
-    type             = "fixed-response"
-    fixed_response {
-      status_code = 200
-      content_type = "text/plain"
-      message_body = "Mahlzeit!"
-    }
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.web.arn
   }
 }
 
@@ -288,7 +347,7 @@ resource "aws_lb_target_group" "web" {
 
   health_check {
     protocol = "HTTP"
-    path     = "/"
+    path     = "/health"
     interval = 30
     timeout  = 5
     healthy_threshold   = 3
@@ -296,25 +355,25 @@ resource "aws_lb_target_group" "web" {
   }
 }
 
-resource "aws_lb_listener_rule" "web_listener_rule" {
-  listener_arn = aws_lb_listener.http.arn
-  priority     = 1
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.web.arn
-  }
+#resource "aws_lb_listener_rule" "web_listener_rule" {
+# listener_arn = aws_lb_listener.http.arn
+#  priority     = 1
+#  action {
+#    type             = "forward"
+#    target_group_arn = aws_lb_target_group.web.arn
+#  }
 
-  condition {
-    field  = "path-pattern"
-    values = ["/"]
-  }
-}
+#  condition {
+#    field  = "path-pattern"
+#    values = ["/"]
+#  }
+#}
 
 resource "aws_lb_target_group_attachment" "web_target_attachment" {
-  for_each = toset([aws_instance.web_server.id])
+  #for_each = toset([aws_instance.web_server.id])
 
   target_group_arn = aws_lb_target_group.web.arn
-  target_id        = each.value
+  target_id        = aws_instance.web_server.id
   port             = 80
 }
 
@@ -345,7 +404,7 @@ resource "aws_route_table" "nat_gateway_private" {
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main.id
+    nat_gateway_id = aws_nat_gateway.nat_gateway.id
   }
 
   tags = {
@@ -353,13 +412,3 @@ resource "aws_route_table" "nat_gateway_private" {
   }
 }
 
-# Route Table subnet priv to subnet priv
-resource "aws_route_table_association" "private_a" {
-  subnet_id      = aws_subnet.aws_subnet_private_a.id
-  route_table_id = aws_route_table.private.id
-}
-
-resource "aws_route_table_association" "private_b" {
-  subnet_id      = aws_subnet.aws_subnet_private_b.id
-  route_table_id = aws_route_table.private.id
-}
