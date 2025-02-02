@@ -4,7 +4,7 @@
 
 Dieses Repository iat ein Fork von dem Projekt EventTom, welches im Rahmen des Kurses "Softwarearchitektur und Qualitätssicherung" im Wintersemester 2024/2025 entwickelt wurde.
 
-
+Das Projekt beinhaltet eine Webseite des Zweckes für das managen von Events, die es Nutzern ermöglicht, Tickets für alle gegebenen Veranstaltungen zu erwerben sowie die Anwendung von Rabatten mittels Coupons. 
 
  Modellschema
 ![grafik](https://github.com/user-attachments/assets/8064acf3-c6d3-47a9-9bba-2a307e7e0642)
