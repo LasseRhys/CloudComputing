@@ -24,6 +24,7 @@ jobs:
 
       
     - name: Build Docker image
+      working-directory: backend/eventtom
       run: |
         docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/${{ secrets.DOCKER_HUB_REPOSITORY }}:latest .
 
