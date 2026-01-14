@@ -19,9 +19,11 @@ variable "aws_token"  {
 }
 variable "username"  {
   description = "Database Username"
+  default     = "postgres"
   type        = string
 }
 variable "password"  {
   description = "Database Password"
   type        = string
 }
+
