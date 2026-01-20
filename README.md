@@ -30,17 +30,14 @@ git clone https://github.com/LasseRhys/CloudComputing.git
 cd CloudComputing
 
 2. Backend (Spring Boot) Setup
-2.1 MySQL Datenbank
+2.1 postgres Datenbank
 
-Erstelle eine neue MySQL-Datenbank für das Projekt:
-
-CREATE DATABASE eventtom;
 
 2.2 Konfiguration der Anwendung
 
-Ändere die MySQL-Verbindungsdaten in der application.properties Datei unter src/main/resources:
+Ändere die postgres-Verbindungsdaten in der application.properties Datei unter src/main/resources:
 
-spring.datasource.url=jdbc:mysql://localhost:3306/eventtom
+spring.datasource.url=jdbc:postgres://localhost:5432/postgres
 spring.datasource.username=root
 spring.datasource.password=dein_passwort
 spring.jpa.hibernate.ddl-auto=update

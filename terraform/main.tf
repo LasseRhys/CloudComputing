@@ -61,7 +61,7 @@ resource "aws_internet_gateway" "igw" {
 
 resource "aws_eip" "nat_gateway_eip" {
   depends_on = [aws_internet_gateway.igw]
-
+  vpc= true
   tags = {
     Name = "nat_gateway"
   }
@@ -90,11 +90,11 @@ resource "aws_route_table" "private" {
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_nat_gateway.nat_gateway.id
+      nat_gateway_id = aws_nat_gateway.nat_gateway.id
   }
 
   tags = {
-    Name = "Public Route Table"
+    Name = "Private Route Table"
   }
 }
 
@@ -118,7 +118,19 @@ resource "aws_route_table_association" "private_b" {
   route_table_id = aws_route_table.private.id
 }
 
+resource "aws_db_subnet_group" "db_subnet_group_private" {
+  name       = "db_subnet_group_private"
+  subnet_ids = [aws_subnet.aws_subnet_private_a.id, aws_subnet.aws_subnet_private_b.id]
 
+
+}
+
+resource "aws_db_subnet_group" "db_subnet_group_public" {
+  name       = "db_subnet_group_public"
+  subnet_ids = [aws_subnet.aws_subnet_public_a.id, aws_subnet.aws_subnet_public_b.id]
+
+
+}
 
 resource "aws_security_group" "web_sg" {
   vpc_id = aws_vpc.main.id
@@ -138,11 +150,11 @@ resource "aws_security_group" "web_sg" {
   }
 
   ingress {
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-   # source_security_group_id = aws_security_group #TODO
+    from_port       = 8080
+    to_port         = 8080
+    protocol        = "tcp"
+    security_groups = [aws_security_group.lb_sg.id]
+    description     = "Allow app traffic only from ALB"
   }
 
   egress {
@@ -198,20 +210,28 @@ resource "aws_instance" "web_server" {
   vpc_security_group_ids = [aws_security_group.web_sg.id]
   associate_public_ip_address = true
   iam_instance_profile = data.aws_iam_instance_profile.vocareum_lab_instance_profile.name
-  count=1
 
-  depends_on = [aws_db_instance.db,aws_vpc.main,aws_subnet.aws_subnet_public_a]
+
+  depends_on = [aws_db_instance.db,aws_vpc.main,aws_subnet.aws_subnet_public_a,aws_nat_gateway.nat_gateway, aws_internet_gateway.igw]
 
   user_data = <<-EOF
               #!/bin/bash
-              sudo apt update
-              sudo apt upgrade -y
+              mkdir work
+              cd work
               sudo touch .env
-              echo 'DATABASE_URL="postgresql://${aws_db_instance.eventtom_rds.username}:${aws_secretsmanager_secret_version.eventtom_secret_manager.secret_string}@${aws_db_instance.eventtom_rds.address}:5432/${aws_db_instance.eventtom_rds.db_name}"' | sudo tee -a .env
-              echo 'DATABASE_USERNAME="${var.USERNAME}"' | sudo tee -a .env
-              echo 'DATABASE_PASSWORD="${var.PASSWORD}"' | sudo tee -a .env
+              echo 'URL="jdbc:postgresql://${aws_db_instance.db.address}:5432/postgres"' | sudo tee -a .env
+              echo 'DATABASE_USERNAME="${aws_db_instance.db.username}"' | sudo tee -a .env
+              echo 'DATABASE_PASSWORD="${aws_secretsmanager_secret_version.secret_manager.secret_string}"' | sudo tee -a .env
               source /etc/environment
-              docker run  -p 8080:8080  --env-file .env guenther4587:local
+              sudo apt update
+
+              sudo apt install apt-transport-https ca-certificates curl software-properties-common
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+              echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+              sudo apt-get update
+              sudo apt install -y docker-ce docker-ce-cli containerd.io
+
+              sudo docker run  -p 8080:8080  --env-file .env rhysling/guenther4587:latest
 
               EOF
 }
@@ -238,19 +258,7 @@ resource "aws_security_group" "db_sg" {
   }
 }
 
-resource "aws_db_subnet_group" "db_subnet_group_private" {
-  name       = "db_subnet_group_private"
-  subnet_ids = [aws_subnet.aws_subnet_private_a.id, aws_subnet.aws_subnet_private_b.id]
 
-
-}
-
-resource "aws_db_subnet_group" "db_subnet_group_public" {
-  name       = "db_subnet_group_public"
-  subnet_ids = [aws_subnet.aws_subnet_public_a.id, aws_subnet.aws_subnet_public_b.id]
-
-
-}
 
 resource "aws_secretsmanager_secret" "rds_password" {
   name                    = "EVENTTOM_RDS_PASSWORD"
@@ -271,7 +279,7 @@ resource "aws_db_instance" "db" {
   instance_class       = "db.t3.micro"
   username             = var.username
   password             = aws_secretsmanager_secret_version.secret_manager.secret_string
-  db_subnet_group_name = aws_db_subnet_group.db_subnet_group_private.name
+  db_subnet_group_name = aws_db_subnet_group.db_subnet_group_private.id
   vpc_security_group_ids = [aws_security_group.db_sg.id]
   #final_snapshot_identifier = false
   skip_final_snapshot = true
@@ -279,70 +287,7 @@ resource "aws_db_instance" "db" {
 
 }
 
-resource "aws_s3_bucket" "Not_static_files" {
-  bucket = "notstaticbucket334i"
 
-  tags = {
-    Name = "not Static Files Bucket"
-  }
-}
-
-resource "aws_s3_bucket" "static_files" {
-  bucket = "websitebucketeventom3341"
-
- # acl    = "public-read"
-
-  tags = {
-    Name = "Static Files Bucket"
-  }
-}
-
-# Public Access Block (muss deaktiviert werden, um öffentliche Policy zu nutzen)
-resource "aws_s3_bucket_public_access_block" "static_files_public_access" {
-  bucket = aws_s3_bucket.static_files.id
-
-  block_public_acls       = false
-  block_public_policy     = false
-  ignore_public_acls      = false
-  restrict_public_buckets = false
-}
-
-resource "aws_s3_bucket_ownership_controls" "static_files_ownership" {
-  bucket = aws_s3_bucket.static_files.id
-
-  rule {
-    object_ownership = "BucketOwnerEnforced"
-  }
-}
-
-
-#  BucketPolicy einstellen
-resource "aws_s3_bucket_policy" "static_files_policy" {
-  bucket = aws_s3_bucket.static_files.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = "s3:GetObject"
-        Resource  = "${aws_s3_bucket.static_files.arn}/*"
-      }
-    ]
-  })
-  depends_on = [aws_s3_bucket_ownership_controls.static_files_ownership]
-}
-
-# Deployment  index
-resource "aws_s3_object" "vue_files" {
-  for_each = fileset("${path.module}/../src/views/kunde", "**/*.vue")
-
-  bucket       = aws_s3_bucket.static_files.id
-  key          = each.value
-  source       = "${path.module}/../src/views/kunde/${each.value}"
-  content_type = "text/html"
-}
 
 ##
 
