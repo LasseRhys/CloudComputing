@@ -133,28 +133,46 @@ resource "aws_db_subnet_group" "db_subnet_group_public" {
 }
 
 resource "aws_security_group" "web_sg" {
+  name   = "eventtom_ec2"
+  vpc_id = aws_vpc.main.id
+}
+
+resource "aws_security_group_rule" "allow_ssh_traffic_to_ec2" {
+  type              = "ingress"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.web_sg.id
+}
+
+resource "aws_security_group_rule" "allow_all_outbound_traffic_from_ec2" {
+  type              = "egress"
+  from_port         = 0
+  to_port           = 0
+  protocol          = "-1"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.web_sg.id
+}
+
+resource "aws_security_group_rule" "allow_request_traffic_ec2" {
+  type                     = "ingress"
+  from_port                = 8080
+  to_port                  = 8080
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.lb_sg.id
+  security_group_id        = aws_security_group.web_sg.id
+}
+
+resource "aws_security_group" "sg_eventtom_rds" {
+  name   = "eventtom-rds-sg"
   vpc_id = aws_vpc.main.id
 
   ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # HTTP-Zugriff von überall
-  }
-
-    ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port       = 8080
-    to_port         = 8080
+    from_port       = 5432
+    to_port         = 5432
     protocol        = "tcp"
-    security_groups = [aws_security_group.lb_sg.id]
-    description     = "Allow app traffic only from ALB"
+    security_groups = [aws_security_group.web_sg.id]
   }
 
   egress {
@@ -162,10 +180,6 @@ resource "aws_security_group" "web_sg" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "Web Server SG"
   }
 }
 
@@ -219,9 +233,9 @@ resource "aws_instance" "web_server" {
               mkdir work
               cd work
               sudo touch .env
-              echo 'URL="jdbc:postgresql://${aws_db_instance.db.address}:5432/postgres"' | sudo tee -a .env
-              echo 'DATABASE_USERNAME="${aws_db_instance.db.username}"' | sudo tee -a .env
-              echo 'DATABASE_PASSWORD="${aws_secretsmanager_secret_version.secret_manager.secret_string}"' | sudo tee -a .env
+              echo 'DATABASE_URL=jdbc:postgresql://${aws_db_instance.db.address}:5432/postgres' | sudo tee -a .env
+              echo 'DATABASE_USERNAME=${aws_db_instance.db.username}' | sudo tee -a .env
+              echo 'DATABASE_PASSWORD=${aws_secretsmanager_secret_version.secret_manager.secret_string}' | sudo tee -a .env
               source /etc/environment
               sudo apt update
 
@@ -231,7 +245,7 @@ resource "aws_instance" "web_server" {
               sudo apt-get update
               sudo apt install -y docker-ce docker-ce-cli containerd.io
 
-              sudo docker run  -p 8080:8080  --env-file .env rhysling/guenther4587:latest
+              docker run -d -p 8080:8080  -e DATABASE_URL=jdbc:postgresql://${aws_db_instance.db.address}:5432/postgres  -e DATABASE_USERNAME=${aws_db_instance.db.username} -e DATABASE_PASSWORD=${aws_secretsmanager_secret_version.secret_manager.secret_string} rhysling/guenther4587:latest
 
               EOF
 }
@@ -279,8 +293,8 @@ resource "aws_db_instance" "db" {
   instance_class       = "db.t3.micro"
   username             = var.username
   password             = aws_secretsmanager_secret_version.secret_manager.secret_string
-  db_subnet_group_name = aws_db_subnet_group.db_subnet_group_private.id
-  vpc_security_group_ids = [aws_security_group.db_sg.id]
+  db_subnet_group_name = aws_db_subnet_group.db_subnet_group_private.name
+  vpc_security_group_ids = [aws_security_group.sg_eventtom_rds.id]
   #final_snapshot_identifier = false
   skip_final_snapshot = true
   publicly_accessible = false
@@ -299,7 +313,7 @@ resource "aws_lb" "loadbalancer" {
   name               = "loadbalancerEvent"
   internal           = false
   load_balancer_type = "application"
-  security_groups    = [aws_security_group.web_sg.id]
+  security_groups    = [aws_security_group.lb_sg.id]
   subnets            = [aws_subnet.aws_subnet_public_a.id, aws_subnet.aws_subnet_public_b.id]
   depends_on = [aws_internet_gateway.igw]
 
