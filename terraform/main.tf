@@ -230,6 +230,9 @@ resource "aws_instance" "web_server" {
 
   user_data = <<-EOF
               #!/bin/bash
+              exec > >(tee /var/log/user-data.log)
+              exec 2>&1
+
               mkdir work
               cd work
               sudo touch .env
@@ -245,7 +248,19 @@ resource "aws_instance" "web_server" {
               sudo apt-get update
               sudo apt install -y docker-ce docker-ce-cli containerd.io
 
-              docker run -d -p 8080:8080  -e DATABASE_URL=jdbc:postgresql://${aws_db_instance.db.address}:5432/postgres  -e DATABASE_USERNAME=${aws_db_instance.db.username} -e DATABASE_PASSWORD=${aws_secretsmanager_secret_version.secret_manager.secret_string} rhysling/guenther4587:latest
+
+              systemctl start docker
+              systemctl enable docker
+
+              # Erlaubt Ubunter-User Docker commands auszufuehren ohne sudo
+              usermod -aG docker ubuntu
+              sleep 5
+
+              docker run -d -p 8080:8080 --name myapp --restart unless-stopped -e DATABASE_URL=jdbc:postgresql://${aws_db_instance.db.address}:5432/postgres  -e DATABASE_USERNAME=${aws_db_instance.db.username} -e DATABASE_PASSWORD=${aws_secretsmanager_secret_version.secret_manager.secret_string} rhysling/guenther4587:latest
+              sleep 8
+
+              docker ps -a
+              docker logs myapp
 
               EOF
 }
