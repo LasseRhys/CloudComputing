@@ -137,10 +137,10 @@ resource "aws_security_group" "web_sg" {
   vpc_id = aws_vpc.main.id
 }
 
-resource "aws_security_group_rule" "allow_ssh_traffic_to_ec2" {
+resource "aws_security_group_rule" "allow_traffic_to_ec2" {
   type              = "ingress"
-  from_port         = 22
-  to_port           = 22
+  from_port         = 80
+  to_port           = 80
   protocol          = "tcp"
   cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = aws_security_group.web_sg.id
@@ -186,7 +186,7 @@ resource "aws_security_group" "sg_eventtom_rds" {
 resource "aws_security_group" "lb_sg" {
   name        = "load_balancer_sg"
   description = "Security group for ALB allowing HTTP traffic"
-  vpc_id      = aws_vpc.main.id #rsetze mit deiner VPC-ID
+  vpc_id      = aws_vpc.main.id
 
   ingress {
     from_port   = 80
@@ -255,12 +255,13 @@ resource "aws_instance" "web_server" {
               # Erlaubt Ubunter-User Docker commands auszufuehren ohne sudo
               usermod -aG docker ubuntu
               sleep 5
-
-              docker run -d -p 8080:8080 --name myapp --restart unless-stopped -e DATABASE_URL=jdbc:postgresql://${aws_db_instance.db.address}:5432/postgres  -e DATABASE_USERNAME=${aws_db_instance.db.username} -e DATABASE_PASSWORD=${aws_secretsmanager_secret_version.secret_manager.secret_string} rhysling/guenther4587:latest
+              docker network create mynet
+              docker run -d -p 8080:8080 --name backend --network mynet --restart unless-stopped -e DATABASE_URL=jdbc:postgresql://${aws_db_instance.db.address}:5432/postgres  -e DATABASE_USERNAME=${aws_db_instance.db.username} -e DATABASE_PASSWORD=${aws_secretsmanager_secret_version.secret_manager.secret_string} rhysling/guenther4587:latest
+              docker run -d -p 80:80 --name frontend --network mynet --restart unless-stopped rhysling/hartmut1029:latest
               sleep 8
 
               docker ps -a
-              docker logs myapp
+              docker logs backend
 
               EOF
 }
