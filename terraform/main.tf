@@ -145,7 +145,14 @@ resource "aws_security_group_rule" "allow_traffic_to_ec2" {
   cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = aws_security_group.web_sg.id
 }
-
+resource "aws_security_group_rule" "allow_ssh_traffic_to_ec2" {
+  type              = "ingress"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.web_sg.id
+}
 resource "aws_security_group_rule" "allow_all_outbound_traffic_from_ec2" {
   type              = "egress"
   from_port         = 0
