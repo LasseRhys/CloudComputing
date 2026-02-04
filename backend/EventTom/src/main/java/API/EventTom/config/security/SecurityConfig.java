@@ -43,7 +43,9 @@ public class SecurityConfig implements WebMvcConfigurer  {
         configuration.setAllowedOriginPatterns(List.of(
                 "http://localhost:*",
                 "http://frontend:*",
-                "http://backend:*"
+                "http://backend:*",
+                "http://*.compute.amazonaws.com",
+                "http://*"
         ));
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
@@ -52,7 +54,7 @@ public class SecurityConfig implements WebMvcConfigurer  {
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", configuration);
+        source.registerCorsConfiguration("/**", configuration);
         return source;
     }
     @Bean
@@ -95,8 +97,8 @@ public class SecurityConfig implements WebMvcConfigurer  {
                 })
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("swagger-ui/**").permitAll()
-                        .requestMatchers("/api-docs").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/v3/api-docs").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/refreshtoken").permitAll()
                         .requestMatchers("/api/auth/signout").permitAll()
