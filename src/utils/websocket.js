@@ -12,7 +12,7 @@ class WebSocketService {
     connect() {
         if (this.isConnected) return;
 
-        const socket = new SockJS('http://localhost:8080/ws');
+        const socket = new SockJS('/ws');
         this.stompClient = Stomp.over(socket);
 
 
