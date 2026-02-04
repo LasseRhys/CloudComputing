@@ -61,7 +61,7 @@ resource "aws_internet_gateway" "igw" {
 
 resource "aws_eip" "nat_gateway_eip" {
   depends_on = [aws_internet_gateway.igw]
-  vpc= true
+  domain = "vpc"
   tags = {
     Name = "nat_gateway"
   }
@@ -362,7 +362,14 @@ resource "aws_lb_target_group" "web" {
   vpc_id   = aws_vpc.main.id
 
   health_check {
-    enabled = false
+    protocol            = "HTTP"
+    path                = "/"
+    port                = "80"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    matcher             = "200-399"
   }
 }
 
