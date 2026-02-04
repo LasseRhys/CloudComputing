@@ -24,6 +24,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.http.HttpMethod;
 
 import java.util.Arrays;
 import java.util.List;
@@ -49,6 +50,8 @@ public class SecurityConfig implements WebMvcConfigurer  {
         ));
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
@@ -87,8 +90,8 @@ public class SecurityConfig implements WebMvcConfigurer  {
         return new AuthenticatedUserIdArgumentResolver();
     }
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    //@Bean
+    /*public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
@@ -97,6 +100,7 @@ public class SecurityConfig implements WebMvcConfigurer  {
                 })
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/v3/api-docs").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
@@ -108,7 +112,26 @@ public class SecurityConfig implements WebMvcConfigurer  {
                 );
                 http.authenticationProvider(authenticationProvider());
                 http.addFilterBefore(authTokenFilter(), UsernamePasswordAuthenticationFilter.class);
+*/  @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(AbstractHttpConfigurer::disable)
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthorizedHandler))
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        // <-- DAS ist der entscheidende Part:
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/refreshtoken", "/api/auth/signout").permitAll()
+                        .requestMatchers("/api/registration/customer").permitAll()
+                        .requestMatchers("/error").permitAll()
+                        .anyRequest().authenticated()
+                );
+
+        http.authenticationProvider(authenticationProvider());
+        http.addFilterBefore(authTokenFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
