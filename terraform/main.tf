@@ -363,7 +363,7 @@ resource "aws_lb_target_group" "web" {
 
   health_check {
     protocol = "HTTP"
-    path     = "/health"
+    path     = "/"
     interval = 30
     timeout  = 5
     healthy_threshold   = 3
